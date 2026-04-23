@@ -1,4 +1,7 @@
 // api/ai/chat.ts
+export const config = {
+  runtime: 'edge', // 30 секунд таймаут на Hobby, достаточно для стриминга
+};
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
@@ -12,10 +15,10 @@ export default async function handler(req: Request): Promise<Response> {
     const API_KEY = process.env.MISTRAL_API_KEY;
     if (!API_KEY) {
       console.error('MISTRAL_API_KEY не задан');
-      return new Response(JSON.stringify({ error: 'Server configuration error: API key missing' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error: API key missing' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     const { messages } = await req.json();
@@ -31,6 +34,7 @@ export default async function handler(req: Request): Promise<Response> {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${API_KEY}`,
+        Accept: 'text/event-stream', // явно просим SSE
       },
       body: JSON.stringify({
         model: 'mistral-small-latest',
@@ -65,7 +69,6 @@ export default async function handler(req: Request): Promise<Response> {
     }
 
     const encoder = new TextEncoder();
-
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = '';
@@ -94,7 +97,7 @@ export default async function handler(req: Request): Promise<Response> {
                     );
                   }
                 } catch {
-                  // игнорируем невалидные чанки
+                  // игнорируем битые чанки
                 }
               }
             }
