@@ -1,8 +1,7 @@
 // api/ai/steps.ts
 export const config = { runtime: 'edge' };
-import { callMistral } from '../_lib/mistral';
+import { callMistral } from '../_lib/mistral.js';
 
-// Твоя старая логика fallback
 function buildFallbackSteps(payload: any) {
   const title = String(payload.title || 'Задание').trim();
   const subject = String(payload.subject || '').trim().toLowerCase();
@@ -74,7 +73,6 @@ export default async function handler(req: Request) {
       return new Response(JSON.stringify({ error: 'Нужно передать title или description.' }), { status: 400 });
     }
 
-    // Запрос к Mistral
     const result = await callMistral([
       {
         role: 'system',
@@ -105,7 +103,6 @@ export default async function handler(req: Request) {
       } catch {}
     }
 
-    // Fallback
     const fallback = buildFallbackSteps(payload);
     return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
