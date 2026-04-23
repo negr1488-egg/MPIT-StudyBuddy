@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Paperclip, Trash2, Sparkles } from 'lucide-react';
-import { gigachatClient, type AiTaskStep } from '../../../services/gigachat/client';
 import type { CreateTaskInput } from '../hooks/useTasks';
 import type { TaskRoleOwner } from '../types/task';
 
