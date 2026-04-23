@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Paperclip, Trash2, Sparkles } from 'lucide-react';
 import type { CreateTaskInput } from '../hooks/useTasks';
 import type { TaskRoleOwner } from '../types/task';
-// ✅ Добавлен импорт функций из нового AI-слоя
-import { parseTask, getTaskSteps } from '../../services/ai';
+import { parseTask, getTaskSteps } from '../../../services/ai';
 
 interface AiTaskStep {
   title: string;
