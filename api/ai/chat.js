@@ -1,9 +1,7 @@
-// api/ai/chat.ts
-export const config = {
-  runtime: 'edge', // 30 секунд таймаут на Hobby, достаточно для стриминга
-};
+// api/ai/chat.js
+export const config = { runtime: 'edge' };
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -34,7 +32,7 @@ export default async function handler(req: Request): Promise<Response> {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${API_KEY}`,
-        Accept: 'text/event-stream', // явно просим SSE
+        Accept: 'text/event-stream',
       },
       body: JSON.stringify({
         model: 'mistral-small-latest',
@@ -97,7 +95,7 @@ export default async function handler(req: Request): Promise<Response> {
                     );
                   }
                 } catch {
-                  // игнорируем битые чанки
+                  // игнорируем невалидные чанки
                 }
               }
             }
