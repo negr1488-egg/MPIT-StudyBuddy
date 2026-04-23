@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Paperclip, Trash2, Sparkles } from 'lucide-react';
 import type { CreateTaskInput } from '../hooks/useTasks';
 import type { TaskRoleOwner } from '../types/task';
+// ✅ Импорт из нового AI-слоя (путь исправлен: ../../../services/ai)
 import { parseTask, getTaskSteps } from '../../../services/ai';
 
 interface AiTaskStep {
@@ -76,7 +77,6 @@ function AddTaskModalComponent({
 
   const [steps, setSteps] = useState<AiTaskStep[]>([]);
   const [stepsError, setStepsError] = useState('');
-  // ✅ Тип источника изменён: 'mistral' или 'fallback' (вместо 'gigachat')
   const [stepsSource, setStepsSource] = useState<'mistral' | 'fallback' | ''>('');
 
   const [isAiParsing, setIsAiParsing] = useState(false);
@@ -148,7 +148,7 @@ function AddTaskModalComponent({
     }
   };
 
-  // ✅ Полностью заменена функция парсинга и построения шагов
+  // ✅ Функция парсинга через ИИ — дедлайн больше не трогаем
   const handleAiParseAndBuildSteps = async () => {
     if (!rawInput.trim()) {
       setAiError('Сначала вставь текст задания');
@@ -160,7 +160,6 @@ function AddTaskModalComponent({
     setIsAiParsing(true);
 
     try {
-      // ✅ Используем parseTask из нового API
       const parsed = await parseTask(rawInput.trim());
 
       const parsedTitle = parsed.title?.trim() || '';
@@ -168,28 +167,23 @@ function AddTaskModalComponent({
       const parsedDescription =
         parsed.description?.trim() || rawInput.trim();
       const parsedPriority = parsed.priority ?? 'medium';
-      const parsedDeadline = parsed.deadline
-        ? toDatetimeLocalValue(parsed.deadline)
-        : deadline;
+      // ❗️❗️ Дедлайн не обновляем автоматически — пользователь вписывает его сам
+      // Игнорируем parsed.deadline полностью
 
       setTitle(parsedTitle);
       setSubject(parsedSubject);
       setDescription(parsedDescription);
       setPriority(parsedPriority);
-      if (parsedDeadline) {
-        setDeadline(parsedDeadline);
-      }
+      // deadline не меняем!
 
-      // ✅ Используем getTaskSteps из нового API
       const stepsResult = await getTaskSteps({
         title: parsedTitle,
         subject: parsedSubject,
         description: parsedDescription,
-        deadline: parsed.deadline || (parsedDeadline ? new Date(parsedDeadline).toISOString() : ''),
+        deadline: deadline || '', // передаём текущий дедлайн (если есть)
       });
 
       setSteps(Array.isArray(stepsResult.steps) ? stepsResult.steps : []);
-      // ✅ Сохраняем источник (теперь 'mistral' или 'fallback')
       setStepsSource(stepsResult.source ?? '');
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Не удалось распознать задачу через ИИ');
@@ -340,7 +334,11 @@ function AddTaskModalComponent({
               onChange={(e) => setDeadline(e.target.value)}
               className="mt-2 h-12 w-full rounded-2xl border px-4 focus:border-slate-400 focus:outline-none"
               disabled={isSubmitting || isAiParsing}
+              placeholder="2026-04-25 18:00"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Введи полную дату с годом, например: <strong>2026-04-25 18:00</strong>
+            </p>
           </div>
 
           <div className="md:col-span-2">
@@ -378,7 +376,6 @@ function AddTaskModalComponent({
                 <div>
                   <p className="text-sm font-semibold text-violet-900">Этапы от ИИ</p>
                   <p className="text-xs text-violet-700">
-                    {/* ✅ Отображаем актуальный источник */}
                     {stepsSource === 'mistral' ? 'Mistral AI' : 'резервный сценарий'}
                   </p>
                 </div>
