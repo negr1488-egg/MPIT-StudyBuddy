@@ -1,8 +1,7 @@
 // api/ai/parse.ts
 export const config = { runtime: 'edge' };
-import { callMistral } from '../_lib/mistral';
+import { callMistral } from '../_lib/mistral.js';
 
-// Локальная умная заглушка (твой код, только без readBody/sendJson)
 function fallbackParse(input: string) {
   const normalized = String(input || '').toLowerCase();
   const subject = normalized.includes('алгебр')
@@ -63,17 +62,13 @@ export default async function handler(req: Request): Promise<Response> {
       });
     }
 
-    // Пробуем ИИ (Mistral)
     const result = await callMistral([
       {
         role: 'system',
         content:
           'Ты помощник StudyBuddy. Разбери школьное задание и верни JSON с полями subject,title,description,deadline,priority,recommendedEstimatedTime.',
       },
-      {
-        role: 'user',
-        content: input,
-      },
+      { role: 'user', content: input },
     ]).catch(() => null);
 
     if (result) {
@@ -83,12 +78,9 @@ export default async function handler(req: Request): Promise<Response> {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
-      } catch {
-        // Невалидный JSON от ИИ – идём в fallback
-      }
+      } catch {}
     }
 
-    // Если ИИ вернул null или ошибку – используем умный парсер
     const fallbackResult = fallbackParse(input);
     return new Response(JSON.stringify(fallbackResult), {
       status: 200,
