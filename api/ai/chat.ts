@@ -1,9 +1,9 @@
 // api/ai/chat.ts
 export const config = {
-  runtime: 'edge', // 30 секунд на Hobby
+  runtime: 'edge',
 };
 
-// Кэш токена (общий для вызовов в рамках одного инстанса Edge-функции)
+// Кэш токена
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
@@ -14,10 +14,11 @@ async function getAccessToken(): Promise<string> {
   const scope = process.env.GIGACHAT_SCOPE;
 
   if (!authUrl || !clientId || !clientSecret) {
-    throw new Error('Missing OAuth credentials in environment variables');
+    throw new Error(
+      'Missing OAuth credentials. Ensure GIGACHAT_AUTH_URL, GIGACHAT_CLIENT_ID, GIGACHAT_CLIENT_SECRET are set in Vercel.'
+    );
   }
 
-  // Используем кэшированный токен, если он ещё действителен (с запасом в 60 секунд)
   if (cachedToken && Date.now() < tokenExpiresAt) {
     return cachedToken;
   }
@@ -41,12 +42,9 @@ async function getAccessToken(): Promise<string> {
 
   const data = await response.json();
   cachedToken = data.access_token;
-  // expires_in обычно 3600 секунд, вычитаем 60 для безопасности
   tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
   return cachedToken;
 }
-
-const GIGACHAT_API_URL = process.env.GIGACHAT_API_URL!;
 
 export default async function handler(request: Request) {
   if (request.method !== 'POST') {
@@ -57,6 +55,16 @@ export default async function handler(request: Request) {
   }
 
   try {
+    // Явно проверяем GIGACHAT_API_URL
+    const GIGACHAT_API_URL = process.env.GIGACHAT_API_URL;
+    if (!GIGACHAT_API_URL) {
+      console.error('GIGACHAT_API_URL is not set');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error: GIGACHAT_API_URL missing' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { messages } = await request.json();
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'messages array is required' }), {
@@ -65,10 +73,8 @@ export default async function handler(request: Request) {
       });
     }
 
-    // 1. Получаем токен (быстро, если закэширован)
     const accessToken = await getAccessToken();
 
-    // 2. Отправляем запрос к GigaChat с потоковой генерацией
     const gigaResponse = await fetch(GIGACHAT_API_URL, {
       method: 'POST',
       headers: {
@@ -99,7 +105,6 @@ export default async function handler(request: Request) {
       );
     }
 
-    // 3. Пробрасываем поток клиенту как Server-Sent Events
     const reader = gigaResponse.body?.getReader();
     if (!reader) {
       return new Response(JSON.stringify({ error: 'No response stream from GigaChat' }), {
@@ -135,7 +140,7 @@ export default async function handler(request: Request) {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(token)}\n\n`));
                   }
                 } catch {
-                  // пропускаем невалидный JSON
+                  // невалидный JSON – пропускаем
                 }
               }
             }
@@ -160,6 +165,7 @@ export default async function handler(request: Request) {
       },
     });
   } catch (err) {
+    // Логируем реальную ошибку, чтобы увидеть в логах Vercel
     console.error('Chat handler error:', err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : 'Internal Error' }),
