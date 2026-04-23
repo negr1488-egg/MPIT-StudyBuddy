@@ -1,6 +1,6 @@
 // api/ai/analytics.ts
 export const config = { runtime: 'edge' };
-import { callMistral } from '../_lib/mistral';
+import { callMistral } from '../_lib/mistral.js';
 
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
