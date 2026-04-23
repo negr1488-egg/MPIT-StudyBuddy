@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, LoaderCircle } from 'lucide-react';
 import { sendChatMessage } from '../../../services/gigachat/client';
 
 interface Message {
@@ -21,22 +21,26 @@ export function AIChat() {
       role: 'user',
       content: input.trim(),
     };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInput('');
     setLoading(true);
 
     try {
       const reply = await sendChatMessage(
-        updated.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+        updatedMessages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
       );
-      const botMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: reply };
+      const botMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: reply,
+      };
       setMessages((prev) => [...prev, botMsg]);
     } catch (err) {
       console.error('Chat error:', err);
       setMessages((prev) => [
         ...prev,
-        { id: (Date.now() + 2).toString(), role: 'assistant', content: 'Произошла ошибка при отправке.' },
+        { id: Date.now().toString(), role: 'assistant', content: 'Ошибка соединения. Попробуй позже.' },
       ]);
     } finally {
       setLoading(false);
@@ -50,13 +54,20 @@ export function AIChat() {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex items-start gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
             {msg.role === 'assistant' && <Bot className="h-5 w-5 text-indigo-600 mt-1" />}
-            <p className={`max-w-[80%] rounded-xl p-2 text-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-900'}`}>
+            <p className={`max-w-[80%] rounded-xl p-2 text-sm ${
+              msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-900'
+            }`}>
               {msg.content}
             </p>
             {msg.role === 'user' && <User className="h-5 w-5 text-slate-400 mt-1" />}
           </div>
         ))}
-        {loading && <p className="text-sm text-slate-400">ИИ печатает...</p>}
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            ИИ печатает…
+          </div>
+        )}
       </div>
       <div className="flex gap-2">
         <input
@@ -65,8 +76,13 @@ export function AIChat() {
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Спроси о задачах..."
           className="flex-1 rounded-xl border px-3 py-2 text-sm"
+          disabled={loading}
         />
-        <button onClick={handleSend} disabled={loading} className="rounded-xl bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          onClick={handleSend}
+          disabled={loading || !input.trim()}
+          className="rounded-xl bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
           <Send className="h-4 w-4" />
         </button>
       </div>
