@@ -1,6 +1,6 @@
 // src/services/gigachat/client.ts
 
-const FETCH_TIMEOUT = 15000; // 15 секунд
+const FETCH_TIMEOUT = 15000;
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeout: number) {
   const controller = new AbortController();
@@ -13,7 +13,9 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeout: numb
   }
 }
 
-export async function sendChatMessage(messages: { role: 'user' | 'assistant'; content: string }[]) {
+export async function sendChatMessage(
+  messages: { role: 'user' | 'assistant'; content: string }[]
+): Promise<string> {
   try {
     const response = await fetchWithTimeout(
       '/api/ai/chat',
@@ -24,16 +26,47 @@ export async function sendChatMessage(messages: { role: 'user' | 'assistant'; co
       },
       FETCH_TIMEOUT
     );
-    const contentType = response.headers.get('content-type');
-    if (response.ok && contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      return data.reply as string;
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Chat API error:', response.status, errText);
+      return 'Ошибка соединения с ИИ. Попробуй позже.';
     }
+
+    const reader = response.body?.getReader();
+    if (!reader) return 'Ошибка: ответ не содержит поток.';
+
+    const decoder = new TextDecoder();
+    let fullReply = '';
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') break;
+          try {
+            const token = JSON.parse(data);
+            if (typeof token === 'string') fullReply += token;
+          } catch {
+            // игнорируем битые чанки
+          }
+        }
+      }
+    }
+
+    return fullReply || 'ИИ вернул пустой ответ.';
   } catch (err) {
-    // Тайм-аут или сетевая ошибка
     if (err instanceof DOMException && err.name === 'AbortError') {
       return 'Истекло время ожидания ответа. Попробуй позже.';
     }
+    return 'Извини, ИИ‑помощник сейчас недоступен. Попробуй позже.';
   }
-  return 'Извини, ИИ‑помощник сейчас недоступен. Попробуй позже.';
 }
