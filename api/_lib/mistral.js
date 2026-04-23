@@ -1,8 +1,5 @@
-// api/_lib/mistral.ts
-export async function callMistral(messages: { role: string; content: string }[], options?: {
-  temperature?: number;
-  responseFormat?: { type: string };
-}): Promise<string | null> {
+// api/_lib/mistral.js
+export async function callMistral(messages, options = {}) {
   const API_KEY = process.env.MISTRAL_API_KEY;
   if (!API_KEY) throw new Error('MISTRAL_API_KEY not set');
 
@@ -15,8 +12,8 @@ export async function callMistral(messages: { role: string; content: string }[],
     body: JSON.stringify({
       model: 'mistral-small-latest',
       messages,
-      temperature: options?.temperature ?? 0.3,
-      response_format: options?.responseFormat ?? { type: 'json_object' },
+      temperature: options.temperature ?? 0.3,
+      response_format: options.responseFormat ?? { type: 'json_object' },
       max_tokens: 1500,
     }),
   });
