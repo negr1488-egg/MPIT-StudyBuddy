@@ -1,10 +1,15 @@
-import { callGigaChat } from '../_lib/gigachat.js';
-import { readBody, sendJson } from '../_lib/json.js';
+// api/ai/analytics.ts
+export const config = { runtime: 'edge' };
+import { callMistral } from '../_lib/mistral';
 
-export default async function handler(request, response) {
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+  }
+
   try {
-    const body = await readBody(request);
-    const tasks = Array.isArray(body.tasks) ? body.tasks : [];
+    const { tasks } = await req.json();
+    const taskList = Array.isArray(tasks) ? tasks : [];
 
     const fallback = {
       insight: 'Слабое место сейчас — математика: здесь чаще скапливаются рискованные задачи.',
@@ -12,30 +17,29 @@ export default async function handler(request, response) {
       recommendation: 'Смести часть математических задач на более ранний день недели.',
     };
 
-    const gigachat = await callGigaChat([
+    if (taskList.length === 0) {
+      return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const result = await callMistral([
       {
         role: 'system',
         content:
-          'Ты аналитик StudyBuddy. Верни JSON с полями insight, riskLevel, recommendation по списку школьных задач.',
+          'Ты аналитик StudyBuddy. Проанализируй список задач и верни JSON: { "insight": "строка", "riskLevel": "low|medium|high", "recommendation": "строка" }',
       },
-      {
-        role: 'user',
-        content: JSON.stringify(tasks),
-      },
+      { role: 'user', content: JSON.stringify(taskList) },
     ]).catch(() => null);
 
-    const content = gigachat?.choices?.[0]?.message?.content;
-    if (content) {
+    if (result) {
       try {
-        return sendJson(response, 200, JSON.parse(content));
-      } catch {
-      }
+        const parsed = JSON.parse(result);
+        return new Response(JSON.stringify(parsed), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } catch {}
     }
 
-    return sendJson(response, 200, fallback);
+    return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    return sendJson(response, 500, {
-      error: error instanceof Error ? error.message : 'Unexpected AI proxy error.',
-    });
+    console.error('Analytics error:', error);
+    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 });
   }
 }
