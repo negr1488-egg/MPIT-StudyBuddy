@@ -1,90 +1,6 @@
 // api/ai/chat.ts
-import https from 'https';
 
-// Агент для OAuth-запроса на порт 9443 (сертификат может быть самоподписным)
-const authAgent = new https.Agent({
-  rejectUnauthorized: false,
-  keepAlive: true,
-});
-
-// Кэш токена доступа в памяти (живёт между вызовами функции)
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
-
-/**
- * Делает POST-запрос к /api/v2/oauth с Basic-авторизацией
- * и возвращает Access Token.
- */
-function fetchAccessToken(): Promise<string> {
-  const authUrl = process.env.GIGACHAT_AUTH_URL; // https://ngw.devices.sberbank.ru:9443/api/v2/oauth
-  const authorizationKey = process.env.GIGACHAT_AUTHORIZATION_KEY; // Basic-ключ
-  const scope = process.env.GIGACHAT_SCOPE || 'GIGACHAT_API_PERS';
-
-  if (!authUrl || !authorizationKey) {
-    throw new Error('GIGACHAT_AUTH_URL and GIGACHAT_AUTHORIZATION_KEY must be set');
-  }
-
-  const body = new URLSearchParams({ scope }).toString();
-
-  // Разбираем URL, чтобы использовать https.request
-  const url = new URL(authUrl);
-  const options: https.RequestOptions = {
-    hostname: url.hostname,
-    port: url.port || 9443,
-    path: url.pathname,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-      RqUID: crypto.randomUUID(),
-      Authorization: `Basic ${authorizationKey}`,
-      'Content-Length': Buffer.byteLength(body),
-    },
-    agent: authAgent,
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => (data += chunk));
-      res.on('end', () => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`OAuth error: ${res.statusCode} ${data}`));
-          return;
-        }
-        try {
-          const parsed = JSON.parse(data);
-          resolve(parsed.access_token);
-        } catch (e) {
-          reject(new Error('Failed to parse OAuth response'));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
-}
-
-async function getAccessToken(): Promise<string> {
-  // Если токен ещё не истёк (с запасом 60 секунд), возвращаем его
-  if (cachedToken && Date.now() < tokenExpiresAt) {
-    return cachedToken;
-  }
-
-  // Получаем новый токен
-  const token = await fetchAccessToken();
-  cachedToken = token;
-  // GigaChat даёт expires_in в секундах (обычно 1800 = 30 мин)
-  // Запоминаем время истечения с запасом в 60 секунд
-  // Предполагаем, что срок жизни 30 мин, но лучше парсить из ответа, если возможно.
-  // Мы не парсим expires_in в этом упрощённом варианте, поэтому ставим 29 минут.
-  tokenExpiresAt = Date.now() + 29 * 60 * 1000;
-  return token;
-}
-
-export default async function handler(req: Request) {
+export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -93,9 +9,14 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const apiUrl =
-      process.env.GIGACHAT_API_URL ||
-      'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
+    const API_KEY = process.env.MISTRAL_API_KEY;
+    if (!API_KEY) {
+      console.error('MISTRAL_API_KEY не задан');
+      return new Response(JSON.stringify({ error: 'Server configuration error: API key missing' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const { messages } = await req.json();
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -105,18 +26,14 @@ export default async function handler(req: Request) {
       });
     }
 
-    // 1. Получаем свежий токен доступа
-    const accessToken = await getAccessToken();
-
-    // 2. Отправляем запрос к GigaChat с включённым потоком (stream: true)
-    const gigaResponse = await fetch(apiUrl, {
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'GigaChat',
+        model: 'mistral-small-latest',
         messages: [
           {
             role: 'system',
@@ -130,17 +47,16 @@ export default async function handler(req: Request) {
       }),
     });
 
-    if (!gigaResponse.ok) {
-      const errText = await gigaResponse.text();
-      console.error('GigaChat API error:', gigaResponse.status, errText);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Mistral API error:', response.status, errText);
       return new Response(
-        JSON.stringify({ error: `GigaChat API error: ${gigaResponse.status}` }),
-        { status: gigaResponse.status, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: `Mistral API error: ${response.status}` }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // 3. Проксируем поток ответа клиенту как Server-Sent Events
-    const reader = gigaResponse.body?.getReader();
+    const reader = response.body?.getReader();
     if (!reader) {
       return new Response(JSON.stringify({ error: 'No response body' }), {
         status: 500,
@@ -149,6 +65,7 @@ export default async function handler(req: Request) {
     }
 
     const encoder = new TextEncoder();
+
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = '';
@@ -170,7 +87,7 @@ export default async function handler(req: Request) {
                 }
                 try {
                   const parsed = JSON.parse(data);
-                  const token = parsed.choices?.[0]?.delta?.content;
+                  const token = parsed?.choices?.[0]?.delta?.content;
                   if (token) {
                     controller.enqueue(
                       encoder.encode(`data: ${JSON.stringify(token)}\n\n`)
