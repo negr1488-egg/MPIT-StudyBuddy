@@ -1,8 +1,8 @@
-// api/ai/analytics.ts
+// api/ai/analytics.js
 export const config = { runtime: 'edge' };
 import { callMistral } from '../_lib/mistral.js';
 
-export default async function handler(req: Request) {
+export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
