@@ -1,7 +1,9 @@
-import { callGigaChat } from '../_lib/gigachat.js';
-import { readBody, sendJson } from '../_lib/json.js';
+// api/ai/parse.ts
+export const config = { runtime: 'edge' };
+import { callMistral } from '../_lib/mistral';
 
-function fallbackParse(input) {
+// Локальная умная заглушка (твой код, только без readBody/sendJson)
+function fallbackParse(input: string) {
   const normalized = String(input || '').toLowerCase();
   const subject = normalized.includes('алгебр')
     ? 'Алгебра'
@@ -42,16 +44,27 @@ function fallbackParse(input) {
   };
 }
 
-export default async function handler(request, response) {
+export default async function handler(req: Request): Promise<Response> {
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
-    const body = await readBody(request);
+    const body = await req.json();
     const input = String(body.input || '').trim();
 
     if (!input) {
-      return sendJson(response, 400, { error: 'Input is required.' });
+      return new Response(JSON.stringify({ error: 'Input is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    const gigachat = await callGigaChat([
+    // Пробуем ИИ (Mistral)
+    const result = await callMistral([
       {
         role: 'system',
         content:
@@ -63,19 +76,29 @@ export default async function handler(request, response) {
       },
     ]).catch(() => null);
 
-    const content = gigachat?.choices?.[0]?.message?.content;
-    if (content) {
+    if (result) {
       try {
-        const parsed = JSON.parse(content);
-        return sendJson(response, 200, { ...parsed, source: 'gigachat' });
+        const parsed = JSON.parse(result);
+        return new Response(JSON.stringify({ ...parsed, source: 'mistral' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
       } catch {
+        // Невалидный JSON от ИИ – идём в fallback
       }
     }
 
-    return sendJson(response, 200, fallbackParse(input));
-  } catch (error) {
-    return sendJson(response, 500, {
-      error: error instanceof Error ? error.message : 'Unexpected AI proxy error.',
+    // Если ИИ вернул null или ошибку – используем умный парсер
+    const fallbackResult = fallbackParse(input);
+    return new Response(JSON.stringify(fallbackResult), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     });
+  } catch (error) {
+    console.error('Parse error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
