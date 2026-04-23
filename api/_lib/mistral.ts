@@ -15,7 +15,7 @@ export async function callMistral(messages: { role: string; content: string }[],
     body: JSON.stringify({
       model: 'mistral-small-latest',
       messages,
-      temperature: options?.temperature ?? 0.3, // для структурированных ответов полезен низкий temperature
+      temperature: options?.temperature ?? 0.3,
       response_format: options?.responseFormat ?? { type: 'json_object' },
       max_tokens: 1500,
     }),
