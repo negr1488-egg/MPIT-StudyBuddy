@@ -1,8 +1,8 @@
-// api/ai/parse.ts
+// api/ai/parse.js
 export const config = { runtime: 'edge' };
 import { callMistral } from '../_lib/mistral.js';
 
-function fallbackParse(input: string) {
+function fallbackParse(input) {
   const normalized = String(input || '').toLowerCase();
   const subject = normalized.includes('алгебр')
     ? 'Алгебра'
@@ -43,7 +43,7 @@ function fallbackParse(input: string) {
   };
 }
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
