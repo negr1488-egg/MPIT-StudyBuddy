@@ -9,10 +9,10 @@ import {
   AlertTriangle,
   KeyRound,
   Copy,
-  ClipboardCheck,
 } from 'lucide-react';
 import { TaskList } from '../components/TaskList';
 import { AddTaskModal } from '../components/AddTaskModal';
+import { AIChat } from '../components/AIChat';
 import { useTasks } from '../hooks/useTasks';
 import { useSupabaseSession } from '../hooks/useSupabaseSession';
 
@@ -61,7 +61,6 @@ export function StudentDashboardPage() {
 
   const handleCopyCode = async () => {
     if (!inviteCode) return;
-
     try {
       await navigator.clipboard.writeText(inviteCode);
       setCopyMessage('Код скопирован');
@@ -75,6 +74,7 @@ export function StudentDashboardPage() {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[32px] bg-slate-950 px-6 py-7 text-white shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
+        {/* ... шапка без изменений ... */}
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <div className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90">
@@ -106,17 +106,14 @@ export function StudentDashboardPage() {
               <div className="text-sm text-slate-300">Всего задач</div>
               <div className="mt-2 text-3xl font-semibold">{tasksApi.stats.total}</div>
             </div>
-
             <div className="rounded-[28px] bg-white/10 p-4 backdrop-blur">
               <div className="text-sm text-slate-300">Выполнено</div>
               <div className="mt-2 text-3xl font-semibold">{tasksApi.stats.completedCount}</div>
             </div>
-
             <div className="rounded-[28px] bg-white/10 p-4 backdrop-blur">
               <div className="text-sm text-slate-300">Баллы</div>
               <div className="mt-2 text-3xl font-semibold">{tasksApi.stats.points}</div>
             </div>
-
             <div className="rounded-[28px] bg-white/10 p-4 backdrop-blur">
               <div className="text-sm text-slate-300">Серия</div>
               <div className="mt-2 flex items-center gap-2 text-3xl font-semibold">
@@ -128,21 +125,19 @@ export function StudentDashboardPage() {
         </div>
       </section>
 
+      {/* Код привязки */}
       <section className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
         <div className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-indigo-600" />
           <h2 className="text-lg font-semibold text-slate-950">Код для привязки учителя</h2>
         </div>
-
         <p className="mt-2 text-sm leading-6 text-slate-600">
           Передай этот код учителю, чтобы он мог привязать тебя к своему кабинету и назначать задания.
         </p>
-
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="inline-flex min-h-[52px] items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base font-semibold tracking-[0.18em] text-slate-900">
             {inviteCode || 'Код недоступен'}
           </div>
-
           <button
             type="button"
             onClick={handleCopyCode}
@@ -152,7 +147,6 @@ export function StudentDashboardPage() {
             <Copy className="mr-2 h-4 w-4" />
             Скопировать код
           </button>
-
           {copyMessage && <div className="text-sm text-slate-600">{copyMessage}</div>}
         </div>
       </section>
@@ -163,13 +157,13 @@ export function StudentDashboardPage() {
         </div>
       )}
 
+      {/* Прогресс + подсказки */}
       <section className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
         <div className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             <h2 className="text-lg font-semibold text-slate-950">Твой прогресс</h2>
           </div>
-
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div className="rounded-3xl bg-slate-50 p-4">
               <div className="text-sm text-slate-500">Процент выполнения</div>
@@ -177,14 +171,12 @@ export function StudentDashboardPage() {
                 {tasksApi.stats.completionRate}%
               </div>
             </div>
-
             <div className="rounded-3xl bg-slate-50 p-4">
               <div className="text-sm text-slate-500">В процессе</div>
               <div className="mt-2 text-2xl font-semibold text-slate-950">
                 {tasksApi.stats.inProgressCount}
               </div>
             </div>
-
             <div className="rounded-3xl bg-slate-50 p-4">
               <div className="text-sm text-slate-500">Просрочено</div>
               <div className="mt-2 text-2xl font-semibold text-slate-950">
@@ -199,7 +191,6 @@ export function StudentDashboardPage() {
             <Sparkles className="h-5 w-5 text-violet-600" />
             <h2 className="text-lg font-semibold text-slate-950">Подсказки</h2>
           </div>
-
           <div className="mt-4 space-y-3">
             {insights.length > 0 ? (
               insights.map((insight) => (
@@ -222,13 +213,13 @@ export function StudentDashboardPage() {
         </div>
       </section>
 
+      {/* Адаптивные напоминания + уведомления */}
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
           <div className="flex items-center gap-2">
             <BellRing className="h-5 w-5 text-sky-600" />
             <h2 className="text-lg font-semibold text-slate-950">Адаптивные напоминания</h2>
           </div>
-
           <div className="mt-4 space-y-3">
             {topReminder ? (
               <div className={`rounded-3xl border p-4 ${getRiskStyles(topReminder.risk)}`}>
@@ -239,11 +230,9 @@ export function StudentDashboardPage() {
                   </div>
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
                 </div>
-
                 <div className="mt-3 text-xs opacity-80">
                   Следующее напоминание: {topReminder.nextReminderLabel}
                 </div>
-
                 {topReminder.shouldNotifyParent && (
                   <div className="mt-2 text-xs font-medium">
                     При дальнейшем игнорировании будет сигнал родителю
@@ -263,7 +252,6 @@ export function StudentDashboardPage() {
             <BookOpen className="h-5 w-5 text-indigo-600" />
             <h2 className="text-lg font-semibold text-slate-950">Уведомления по задачам</h2>
           </div>
-
           <div className="mt-4 grid gap-3">
             {adaptiveReminders.length > 0 ? (
               adaptiveReminders.slice(0, 4).map((item) => (
@@ -276,7 +264,6 @@ export function StudentDashboardPage() {
                       <div className="text-sm font-semibold">{item.title}</div>
                       <div className="mt-1 text-sm leading-6">{item.message}</div>
                     </div>
-
                     <div className="rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-700">
                       {item.nextReminderLabel}
                     </div>
@@ -299,6 +286,12 @@ export function StudentDashboardPage() {
         </div>
       </section>
 
+      {/* AI‑чат */}
+      <section className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
+        <AIChat />
+      </section>
+
+      {/* Списки задач */}
       <TaskList
         title="Сегодня"
         description="Ближайшие дедлайны, которые лучше не откладывать."
