@@ -1,6 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Link2, Plus, Unlink, Users, ClipboardCheck, CheckCircle2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  Link2,
+  Plus,
+  Unlink,
+  Users,
+} from 'lucide-react';
 import { AddTaskModal } from '../components/AddTaskModal';
+import { AIChat } from '../components/AIChat';
 import { InsightsPanel } from '../components/InsightsPanel';
 import { NotificationFeed } from '../components/NotificationFeed';
 import { TaskList } from '../components/TaskList';
@@ -87,14 +95,12 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
   const handleLinkStudent = async () => {
     setLinkMessage('');
     resetError();
-
     const normalizedCode = studentCode.trim();
 
     if (!normalizedCode) {
       setLinkMessage('Введите код ученика.');
       return;
     }
-
     if (!isSupabaseEnabled || !supabase) {
       setLinkMessage('Supabase не подключен.');
       return;
@@ -111,19 +117,16 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
       setLinkMessage(error.message);
       return;
     }
-
     if (!studentProfile) {
       setLinkMessage('Ученик с таким кодом не найден.');
       return;
     }
 
     const linked = await linkTeacherToStudent(studentProfile.id);
-
     if (!linked) {
       setLinkMessage('Не удалось привязать ученика.');
       return;
     }
-
     setSelectedStudentId(studentProfile.id);
     setStudentCode('');
     setLinkMessage(`Ученик ${studentProfile.full_name ?? 'без имени'} привязан.`);
@@ -131,18 +134,14 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
 
   const handleUnlinkStudent = async (studentId: string) => {
     setLinkMessage('');
-
     const ok = await unlinkTeacherFromStudent(studentId);
-
     if (!ok) {
       setLinkMessage('Не удалось отвязать ученика.');
       return;
     }
-
     if (selectedStudentId === studentId) {
       setSelectedStudentId('');
     }
-
     setLinkMessage('Ученик отвязан.');
   };
 
@@ -175,16 +174,15 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
             </div>
           </div>
 
+          {/* Блок привязки учеников */}
           <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
             <div className="flex items-center gap-2">
               <Link2 className="h-4 w-4 text-slate-700" />
               <h3 className="text-base font-semibold text-slate-900">Привязка ученика</h3>
             </div>
-
             <p className="mt-2 text-sm text-slate-600">
               Введите код ученика, чтобы привязать его к себе и назначать ему задания.
             </p>
-
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <input
                 value={studentCode}
@@ -201,7 +199,6 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
                 Привязать
               </button>
             </div>
-
             {(linkMessage || linksError) && (
               <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
                 {linksError || linkMessage}
@@ -214,7 +211,6 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
               <Users className="h-4 w-4 text-slate-700" />
               <h3 className="text-base font-semibold text-slate-900">Мои ученики</h3>
             </div>
-
             {!hasStudents ? (
               <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
                 Пока нет привязанных учеников. Сначала привяжите ученика по коду.
@@ -223,7 +219,6 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
               <div className="mt-4 space-y-3">
                 {students.map((student) => {
                   const isSelected = selectedStudentId === student.id;
-
                   return (
                     <div
                       key={student.id}
@@ -238,15 +233,10 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
                           <p className="text-sm font-semibold">
                             {student.full_name ?? 'Ученик без имени'}
                           </p>
-                          <p
-                            className={`mt-1 text-xs ${
-                              isSelected ? 'text-slate-300' : 'text-slate-500'
-                            }`}
-                          >
+                          <p className={`mt-1 text-xs ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                             {student.role ?? 'student'}
                           </p>
                         </div>
-
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => setSelectedStudentId(student.id)}
@@ -258,7 +248,6 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
                           >
                             Выбрать
                           </button>
-
                           <button
                             onClick={() => handleUnlinkStudent(student.id)}
                             className={`inline-flex h-10 items-center justify-center rounded-2xl px-4 text-sm font-medium transition ${
@@ -288,7 +277,6 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
               <Plus className="mr-2 h-4 w-4" />
               Создать задание
             </button>
-
             {selectedStudent && (
               <div className="inline-flex h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700">
                 Выбран ученик:
@@ -313,6 +301,11 @@ export function TeacherDashboardPage({ tasksApi }: TeacherDashboardPageProps) {
           insights={teacherInsights}
           isLoading={tasksApi.isLoading}
         />
+
+        {/* AI‑чат */}
+        <section className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
+          <AIChat />
+        </section>
 
         <section className="rounded-[30px] border border-amber-200 bg-amber-50/60 p-1">
           <div className="mb-2 flex items-center gap-2 px-4 pt-4 text-amber-900">
