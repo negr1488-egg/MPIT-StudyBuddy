@@ -1,4 +1,3 @@
-// api/ai/analytics.js
 export const config = { runtime: 'edge' };
 import { callMistral } from '../_lib/mistral.js';
 
