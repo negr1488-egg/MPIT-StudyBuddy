@@ -1,8 +1,8 @@
-// api/ai/steps.ts
+// api/ai/steps.js
 export const config = { runtime: 'edge' };
 import { callMistral } from '../_lib/mistral.js';
 
-function buildFallbackSteps(payload: any) {
+function buildFallbackSteps(payload) {
   const title = String(payload.title || 'Задание').trim();
   const subject = String(payload.subject || '').trim().toLowerCase();
   const description = String(payload.description || '').trim().toLowerCase();
@@ -55,7 +55,7 @@ function buildFallbackSteps(payload: any) {
   };
 }
 
-export default async function handler(req: Request) {
+export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
@@ -87,8 +87,8 @@ export default async function handler(req: Request) {
         const parsed = JSON.parse(result);
         if (Array.isArray(parsed.steps)) {
           const normalized = parsed.steps
-            .filter((s: any) => s && typeof s.title === 'string')
-            .map((s: any) => ({
+            .filter((s) => s && typeof s.title === 'string')
+            .map((s) => ({
               title: String(s.title).trim(),
               minutes: Math.max(5, Number(s.minutes) || 10),
             }))
