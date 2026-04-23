@@ -1,6 +1,6 @@
 // api/ai/gamification.ts
 export const config = { runtime: 'edge' };
-import { callMistral } from '../_lib/mistral';
+import { callMistral } from '../_lib/mistral.js';
 
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
@@ -8,8 +8,8 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const stats = await req.json(); // например, { completedTasks, totalPoints, streak, subjectBreakdown }
-    
+    const stats = await req.json();
+
     const systemPrompt = `Ты — геймификатор StudyBuddy. На основе статистики ученика предложи:
 - 3 достижения (achievements): каждое с названием, описанием и иконкой-эмодзи,
 - 2 еженедельные цели (goals): конкретные, измеримые,
@@ -19,7 +19,7 @@ export default async function handler(req: Request) {
     const result = await callMistral([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: JSON.stringify(stats) },
-    ]);
+    ]).catch(() => null);
 
     if (result) {
       try {
@@ -28,7 +28,6 @@ export default async function handler(req: Request) {
       } catch {}
     }
 
-    // fallback простой
     const fallback = {
       achievements: [
         { title: 'Начинающий', description: 'Выполни 5 задач', icon: '🌟' },
@@ -46,9 +45,8 @@ export default async function handler(req: Request) {
       },
     };
     return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json' } });
-
-  } catch (err) {
-    console.error('Gamification error:', err);
+  } catch (error) {
+    console.error('Gamification error:', error);
     return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 });
   }
 }
