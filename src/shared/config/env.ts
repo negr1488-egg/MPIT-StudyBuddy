@@ -1,0 +1,7 @@
+export const env = {
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+  appName: 'StudyBuddy',
+};
+
+export const hasSupabaseEnv = Boolean(env.supabaseUrl && env.supabaseAnonKey);
