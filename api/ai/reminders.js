@@ -1,10 +1,15 @@
-import { callGigaChat } from '../_lib/gigachat.js';
-import { readBody, sendJson } from '../_lib/json.js';
+// api/ai/reminders.ts
+export const config = { runtime: 'edge' };
+import { callMistral } from '../_lib/mistral';
 
-export default async function handler(request, response) {
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+  }
+
   try {
-    const body = await readBody(request);
-    const tasks = Array.isArray(body.tasks) ? body.tasks : [];
+    const { tasks } = await req.json();
+    const taskList = Array.isArray(tasks) ? tasks : [];
 
     const fallback = {
       reminders: [
@@ -14,29 +19,31 @@ export default async function handler(request, response) {
       ],
     };
 
-    const gigachat = await callGigaChat([
-      {
-        role: 'system',
-        content: 'Ты учебный помощник. Верни JSON с массивом reminders на основе списка задач пользователя.',
-      },
-      {
-        role: 'user',
-        content: JSON.stringify(tasks),
-      },
-    ]).catch(() => null);
-
-    const content = gigachat?.choices?.[0]?.message?.content;
-    if (content) {
-      try {
-        return sendJson(response, 200, JSON.parse(content));
-      } catch {
-      }
+    if (taskList.length === 0) {
+      return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
-    return sendJson(response, 200, fallback);
+    const result = await callMistral([
+      {
+        role: 'system',
+        content:
+          'Ты учебный помощник. На основе списка задач пользователя верни JSON с массивом reminders (3-5 советов по порядку выполнения). Формат: { "reminders": ["строка", ...] }',
+      },
+      { role: 'user', content: JSON.stringify(taskList) },
+    ]).catch(() => null);
+
+    if (result) {
+      try {
+        const parsed = JSON.parse(result);
+        if (Array.isArray(parsed.reminders)) {
+          return new Response(JSON.stringify(parsed), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+      } catch {}
+    }
+
+    return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    return sendJson(response, 500, {
-      error: error instanceof Error ? error.message : 'Unexpected AI proxy error.',
-    });
+    console.error('Reminders error:', error);
+    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 });
   }
 }
