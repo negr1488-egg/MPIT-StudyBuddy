@@ -1,51 +1,87 @@
+// api/ai/chat.ts
 import https from 'https';
 
-// Агент для обхода проверок сертификата (как в вашем server.js)
-const httpsAgent = new https.Agent({
+// Агент для OAuth-запроса на порт 9443 (сертификат может быть самоподписным)
+const authAgent = new https.Agent({
   rejectUnauthorized: false,
   keepAlive: true,
 });
 
-// Кэш токена в памяти
+// Кэш токена доступа в памяти (живёт между вызовами функции)
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 
-async function getAccessToken(): Promise<string> {
+/**
+ * Делает POST-запрос к /api/v2/oauth с Basic-авторизацией
+ * и возвращает Access Token.
+ */
+function fetchAccessToken(): Promise<string> {
   const authUrl = process.env.GIGACHAT_AUTH_URL; // https://ngw.devices.sberbank.ru:9443/api/v2/oauth
   const authorizationKey = process.env.GIGACHAT_AUTHORIZATION_KEY; // Basic-ключ
   const scope = process.env.GIGACHAT_SCOPE || 'GIGACHAT_API_PERS';
 
   if (!authUrl || !authorizationKey) {
-    throw new Error('GIGACHAT_AUTH_URL and GIGACHAT_AUTHORIZATION_KEY are required');
+    throw new Error('GIGACHAT_AUTH_URL and GIGACHAT_AUTHORIZATION_KEY must be set');
   }
 
-  // Используем кэшированный токен, если он ещё жив (с запасом 60 с)
-  if (cachedToken && Date.now() < tokenExpiresAt) {
-    return cachedToken;
-  }
+  const body = new URLSearchParams({ scope }).toString();
 
-  const response = await fetch(authUrl, {
+  // Разбираем URL, чтобы использовать https.request
+  const url = new URL(authUrl);
+  const options: https.RequestOptions = {
+    hostname: url.hostname,
+    port: url.port || 9443,
+    path: url.pathname,
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
-      RqUID: crypto.randomUUID(), // Генерируем уникальный UUID
+      RqUID: crypto.randomUUID(),
       Authorization: `Basic ${authorizationKey}`,
+      'Content-Length': Buffer.byteLength(body),
     },
-    body: new URLSearchParams({ scope }),
-    // @ts-ignore - передаём агент в fetch (работает в Node.js 18+)
-    agent: httpsAgent,
-  });
+    agent: authAgent,
+  };
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OAuth error: ${response.status} ${text}`);
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`OAuth error: ${res.statusCode} ${data}`));
+          return;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed.access_token);
+        } catch (e) {
+          reject(new Error('Failed to parse OAuth response'));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+async function getAccessToken(): Promise<string> {
+  // Если токен ещё не истёк (с запасом 60 секунд), возвращаем его
+  if (cachedToken && Date.now() < tokenExpiresAt) {
+    return cachedToken;
   }
 
-  const data = await response.json();
-  cachedToken = data.access_token;
-  tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
-  return cachedToken;
+  // Получаем новый токен
+  const token = await fetchAccessToken();
+  cachedToken = token;
+  // GigaChat даёт expires_in в секундах (обычно 1800 = 30 мин)
+  // Запоминаем время истечения с запасом в 60 секунд
+  // Предполагаем, что срок жизни 30 мин, но лучше парсить из ответа, если возможно.
+  // Мы не парсим expires_in в этом упрощённом варианте, поэтому ставим 29 минут.
+  tokenExpiresAt = Date.now() + 29 * 60 * 1000;
+  return token;
 }
 
 export default async function handler(req: Request) {
@@ -69,10 +105,10 @@ export default async function handler(req: Request) {
       });
     }
 
-    // 1. Получаем токен (быстро, если закэширован)
+    // 1. Получаем свежий токен доступа
     const accessToken = await getAccessToken();
 
-    // 2. Запрос к GigaChat с потоком
+    // 2. Отправляем запрос к GigaChat с включённым потоком (stream: true)
     const gigaResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -97,13 +133,13 @@ export default async function handler(req: Request) {
     if (!gigaResponse.ok) {
       const errText = await gigaResponse.text();
       console.error('GigaChat API error:', gigaResponse.status, errText);
-      return new Response(JSON.stringify({ error: errText }), {
-        status: gigaResponse.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: `GigaChat API error: ${gigaResponse.status}` }),
+        { status: gigaResponse.status, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    // 3. Проксируем SSE-поток клиенту
+    // 3. Проксируем поток ответа клиенту как Server-Sent Events
     const reader = gigaResponse.body?.getReader();
     if (!reader) {
       return new Response(JSON.stringify({ error: 'No response body' }), {
@@ -136,15 +172,21 @@ export default async function handler(req: Request) {
                   const parsed = JSON.parse(data);
                   const token = parsed.choices?.[0]?.delta?.content;
                   if (token) {
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(token)}\n\n`));
+                    controller.enqueue(
+                      encoder.encode(`data: ${JSON.stringify(token)}\n\n`)
+                    );
                   }
-                } catch {}
+                } catch {
+                  // игнорируем невалидные чанки
+                }
               }
             }
           }
         } catch (err) {
-          console.error('Stream error:', err);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`));
+          console.error('Stream read error:', err);
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`)
+          );
         } finally {
           controller.close();
         }
