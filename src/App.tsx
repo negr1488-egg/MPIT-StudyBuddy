@@ -11,25 +11,18 @@ import { AppShell } from './features/tracker/components/AppShell';
 import { useTasks } from './features/tracker/hooks/useTasks';
 import { useSupabaseSession } from './features/tracker/hooks/useSupabaseSession';
 import type { TrackerRole } from './features/tracker/types/user';
+import type { BrowserPushNotification } from './features/tracker/hooks/usePushNotifications';
 import { AppProviders } from './app/providers/AppProviders';
 import { allRoutes, appRoutes, routes } from './shared/constants/routes';
 
 function getPathname() {
-  if (typeof window === 'undefined') {
-    return routes.landing;
-  }
-
+  if (typeof window === 'undefined') return routes.landing;
   return window.location.pathname || routes.landing;
 }
 
 function navigate(path: string) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  if (window.location.pathname === path) {
-    return;
-  }
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname === path) return;
 
   window.history.pushState({}, '', path);
   window.dispatchEvent(new PopStateEvent('popstate'));
@@ -56,13 +49,9 @@ export default function App() {
   const auth = useSupabaseSession();
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+    if (typeof window === 'undefined') return;
 
-    const syncPath = () => {
-      setPathname(getPathname());
-    };
+    const syncPath = () => setPathname(getPathname());
 
     window.addEventListener('popstate', syncPath);
 
@@ -72,9 +61,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (auth.isLoading) {
-      return;
-    }
+    if (auth.isLoading) return;
 
     if (!isKnownPath(pathname)) {
       navigate(routes.landing);
@@ -126,9 +113,7 @@ export default function App() {
   }, [pathname, auth.isLoading, auth.session]);
 
   useEffect(() => {
-    if (typeof document === 'undefined') {
-      return;
-    }
+    if (typeof document === 'undefined') return;
 
     const titleMap: Record<string, string> = {
       [routes.landing]: 'StudyBuddy',
@@ -170,6 +155,29 @@ export default function App() {
     }
   }, [appRole]);
 
+  const pushNotifications = useMemo<BrowserPushNotification[]>(() => {
+    if (!auth.session?.role) return [];
+
+    const roleNotes = tasksApi.getNotificationsForRole(auth.session.role).map((item) => ({
+      id: `${auth.session?.role}-${item.id}-${item.title}`,
+      title: item.title,
+      body: item.description,
+      tag: `studybuddy-${auth.session?.role}-${item.id}`,
+    }));
+
+    const adaptiveNotes =
+      auth.session.role === 'student'
+        ? tasksApi.adaptiveReminders.slice(0, 3).map((item) => ({
+            id: `student-reminder-${item.taskId}-${item.risk}-${item.nextReminderLabel}`,
+            title: item.title,
+            body: item.message,
+            tag: `studybuddy-task-${item.taskId}`,
+          }))
+        : [];
+
+    return [...adaptiveNotes, ...roleNotes];
+  }, [auth.session?.role, tasksApi]);
+
   const handleLogout = async () => {
     await auth.logout();
     navigate(routes.landing);
@@ -189,16 +197,13 @@ export default function App() {
   );
 
   const renderAppPage = () => {
-    if (!auth.session) {
-      return null;
-    }
+    if (!auth.session) return null;
 
     return (
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_22%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_18%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_46%,#f8fafc_100%)] px-4 py-5 text-slate-900 md:px-6">
         <div className="mx-auto max-w-[1500px]">
           <AppShell
             session={auth.session}
-            currentPath={pathname}
             role={appRole}
             title={appMeta.title}
             subtitle={appMeta.subtitle}
@@ -206,6 +211,7 @@ export default function App() {
             onLogout={() => {
               void handleLogout();
             }}
+            pushNotifications={pushNotifications}
           >
             {pathname === routes.studentApp && (
               <StudentDashboardPage tasksApi={tasksApi} session={auth.session} />
