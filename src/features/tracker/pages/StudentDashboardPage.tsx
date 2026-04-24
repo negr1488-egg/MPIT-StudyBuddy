@@ -13,8 +13,10 @@ import {
 import { TaskList } from '../components/TaskList';
 import { AddTaskModal } from '../components/AddTaskModal';
 import { AIChat } from '../components/AIChat';
+import { AchievementsPanel } from '../components/AchievementsPanel';
 import { useTasks } from '../hooks/useTasks';
 import { useSupabaseSession } from '../hooks/useSupabaseSession';
+import { useStudentAchievements } from '../hooks/useStudentAchievements';
 
 function getRiskStyles(risk: 'low' | 'medium' | 'high') {
   switch (risk) {
@@ -50,6 +52,7 @@ export function StudentDashboardPage() {
 
   const topReminder = adaptiveReminders[0] ?? null;
   const inviteCode = session?.inviteCode ?? '';
+  const achievementsApi = useStudentAchievements(session?.id, tasksApi.tasks, tasksApi.stats);
 
   const tasksWaitingReview = useMemo(() => {
     return tasksApi.tasks.filter((task) => task.status === 'done' && !task.checkedAt);
@@ -285,6 +288,14 @@ export function StudentDashboardPage() {
           </div>
         </div>
       </section>
+
+      {/* Достижения ученика */}
+      <AchievementsPanel
+        achievements={achievementsApi.achievements}
+        savedAchievements={achievementsApi.savedAchievements}
+        isLoading={achievementsApi.isLoading}
+        error={achievementsApi.error}
+      />
 
       {/* AI‑чат */}
       <section className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
