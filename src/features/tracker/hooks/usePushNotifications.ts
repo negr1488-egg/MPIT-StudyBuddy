@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
 
+export interface BrowserPushNotification {
+  id: string
+  title: string
+  body: string
+  tag?: string
+}
+
 const PUSH_ENABLED_KEY = 'studybuddy.push.enabled'
 
 export function disablePush() {
@@ -14,8 +21,8 @@ export function disablePush() {
   }
 }
 
-export default function usePushNotifications(notifications) {
-  const shownRef = useRef(new Set())
+export default function usePushNotifications(notifications: BrowserPushNotification[]) {
+  const shownRef = useRef(new Set<string>())
 
   useEffect(() => {
     const enabled = localStorage.getItem(PUSH_ENABLED_KEY) === 'true'
