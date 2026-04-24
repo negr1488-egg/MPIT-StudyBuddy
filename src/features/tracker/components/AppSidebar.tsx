@@ -1,14 +1,12 @@
 import React from 'react';
-import { Bell, BookOpen, GraduationCap, LayoutDashboard, LogOut, ShieldCheck, Users } from 'lucide-react';
+import { BookOpen, GraduationCap, LogOut, Users } from 'lucide-react';
 import type { MockSession } from '../types/auth';
 import type { TrackerRole } from '../types/user';
 
 interface AppSidebarProps {
   session: MockSession;
-  currentPath: string;
   onNavigate: (path: string) => void;
   onLogout: () => void;
-  onRoleChange: (role: TrackerRole) => void;
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -21,16 +19,10 @@ const roleMeta: Record<TrackerRole, { label: string; icon: typeof GraduationCap;
   parent: { label: 'Родитель', icon: Users, accent: 'from-amber-500 to-orange-500' },
 };
 
-export function AppSidebar({ session, currentPath, onNavigate, onLogout, onRoleChange }: AppSidebarProps) {
+export function AppSidebar({ session, onNavigate, onLogout }: AppSidebarProps) {
   const role = session.role ?? 'student';
   const roleInfo = roleMeta[role];
   const RoleIcon = roleInfo.icon;
-
-  const navigation = [
-    { label: 'Кабинет', path: `/app/${role}`, icon: LayoutDashboard },
-    { label: 'Уведомления', path: `/app/${role}`, icon: Bell },
-    { label: role === 'teacher' ? 'Проверка и статусы' : role === 'parent' ? 'Контроль и сигналы' : 'Задачи и дедлайны', path: `/app/${role}`, icon: ShieldCheck },
-  ];
 
   return (
     <aside className="flex h-full flex-col rounded-[30px] border border-white/70 bg-white/85 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur">
@@ -57,51 +49,11 @@ export function AppSidebar({ session, currentPath, onNavigate, onLogout, onRoleC
         <p className="mt-3 text-xs leading-6 text-slate-500">{session.email}</p>
       </div>
 
-      <nav className="mt-6 space-y-2">
-        {navigation.map((item) => {
-          const Icon = item.icon;
-          const active = currentPath === item.path;
-
-          return (
-            <button
-              key={item.label}
-              onClick={() => onNavigate(item.path)}
-              className={cn(
-                'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition',
-                active ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
-
       <div className="mt-6 rounded-[28px] border border-slate-200 bg-white p-4">
         <p className="text-sm font-semibold text-slate-950">Роль фиксирует свой слой интерфейса</p>
         <p className="mt-2 text-xs leading-6 text-slate-500">
           Ученик видит задачи и прогресс, учитель — назначение и статусы, родитель — сигналы и результаты.
         </p>
-      </div>
-
-      <div className="mt-4 rounded-[28px] border border-slate-200 bg-white p-4">
-        <p className="text-sm font-semibold text-slate-950">Demo switch</p>
-        <p className="mt-2 text-xs leading-6 text-slate-500">Для защиты можно быстро переключаться между ролями без повторного логина.</p>
-        <div className="mt-3 grid gap-2">
-          {(['student', 'teacher', 'parent'] as TrackerRole[]).map((demoRole) => (
-            <button
-              key={demoRole}
-              onClick={() => onRoleChange(demoRole)}
-              className={cn(
-                'rounded-2xl px-4 py-2 text-left text-sm font-medium transition',
-                role === demoRole ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-              )}
-            >
-              {roleMeta[demoRole].label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <button
