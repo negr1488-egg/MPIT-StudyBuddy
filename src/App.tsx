@@ -175,11 +175,6 @@ export default function App() {
     navigate(routes.landing);
   };
 
-  const handleRoleChange = async (role: TrackerRole) => {
-    await auth.selectRole(role);
-    navigate(`/app/${role}`);
-  };
-
   const renderPublicPage = () => (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(124,58,237,0.16),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(245,158,11,0.12),transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_48%,#f8fafc_100%)] px-4 py-5 text-slate-900 md:px-8">
       <div className="mx-auto max-w-7xl">
@@ -211,7 +206,6 @@ export default function App() {
             onLogout={() => {
               void handleLogout();
             }}
-            onRoleChange={handleRoleChange}
           >
             {pathname === routes.studentApp && (
               <StudentDashboardPage tasksApi={tasksApi} session={auth.session} />
