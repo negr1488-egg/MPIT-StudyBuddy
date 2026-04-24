@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
-import { disablePush } from '../hooks/usePushNotifications'
+import usePushNotifications, { disablePush, BrowserPushNotification } from '../hooks/usePushNotifications'
 
 const PUSH_ENABLED_KEY = 'studybuddy.push.enabled'
 
-export default function PushNotificationToggle() {
+interface PushNotificationToggleProps {
+  notifications?: BrowserPushNotification[]
+}
+
+export function PushNotificationToggle({ notifications = [] }: PushNotificationToggleProps) {
   const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
     setEnabled(localStorage.getItem(PUSH_ENABLED_KEY) === 'true')
   }, [])
+
+  usePushNotifications(notifications)
 
   const enablePush = async () => {
     const permission = await Notification.requestPermission()
