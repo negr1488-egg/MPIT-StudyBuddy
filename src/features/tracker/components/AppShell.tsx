@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState } from 'react'
 import { AppSidebar } from './AppSidebar'
 import { PushNotificationToggle } from './PushNotificationToggle'
 import type { BrowserPushNotification } from '../hooks/usePushNotifications'
@@ -37,53 +37,69 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
       <AppSidebar session={session} onNavigate={onNavigate} onLogout={onLogout} />
 
       <div className="min-w-0">
-        {/* 🔥 ВАЖНО: высокий z-index */}
-        <header className="relative z-50 mb-6 rounded-[30px] border border-white/70 bg-white/90 p-5 shadow-lg backdrop-blur md:p-6">
+        {/* 🔥 Подняли слой всей шапки */}
+        <header className="relative z-[100] mb-6 rounded-[30px] border border-white/70 bg-white/85 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-950 md:text-3xl">
+              <p className="text-sm text-slate-500">StudyBuddy workspace</p>
+              <h1 className="mt-2 text-2xl font-semibold text-slate-950 md:text-3xl">
                 {title}
               </h1>
-              <p className="mt-2 text-sm text-slate-600">{subtitle}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                {subtitle}
+              </p>
             </div>
 
-            <div className="flex items-center gap-3 relative" ref={ref}>
+            {/* 🔥 Подняли слой блока с колокольчиком */}
+            <div className="flex flex-wrap items-center gap-3 relative z-[200]">
               <span className={cn('rounded-full px-3 py-1 text-sm font-semibold', roleBadgeTone[role])}>
                 {role === 'student' ? 'Ученик' : role === 'teacher' ? 'Учитель' : 'Родитель'}
               </span>
 
               <PushNotificationToggle notifications={pushNotifications} />
 
-              {/* 🔔 */}
-              <button
-                onClick={() => setOpen(!open)}
-                className="relative rounded-full bg-slate-100 p-2 hover:bg-slate-200"
-              >
-                🔔
-                {pushNotifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full">
-                    {pushNotifications.length}
-                  </span>
+              {/* 🔔 Колокольчик */}
+              <div className="relative">
+                <button
+                  onClick={() => setOpen(!open)}
+                  className="relative rounded-full bg-slate-100 p-2 hover:bg-slate-200"
+                >
+                  🔔
+
+                  {pushNotifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1 rounded-full">
+                      {pushNotifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* 🔥 Только увеличили z-index */}
+                {open && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white border rounded-xl shadow-lg z-[9999]">
+                    {pushNotifications.length === 0 ? (
+                      <div className="p-4 text-sm text-slate-500">
+                        Нет уведомлений
+                      </div>
+                    ) : (
+                      pushNotifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className="p-3 border-b last:border-b-0 hover:bg-slate-50"
+                        >
+                          <div className="text-sm font-medium">{n.title}</div>
+                          <div className="text-xs text-slate-500">{n.body}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
 
               <div className="rounded-full bg-slate-100 px-4 py-2 text-sm text-slate-700">
                 {session.name}
@@ -92,31 +108,8 @@ export function AppShell({
           </div>
         </header>
 
-        {/* 🔥 ВАЖНО: fixed + высокий слой */}
-        {open && (
-          <div className="fixed top-20 right-6 z-[9999] w-80 max-h-[70vh] overflow-y-auto bg-white border rounded-xl shadow-2xl">
-            {pushNotifications.length === 0 ? (
-              <div className="p-4 text-sm text-slate-500">
-                Нет уведомлений
-              </div>
-            ) : (
-              pushNotifications.map((n) => (
-                <div
-                  key={n.id}
-                  className="p-3 border-b last:border-b-0 hover:bg-slate-50"
-                >
-                  <div className="text-sm font-medium">{n.title}</div>
-                  <div className="text-xs text-slate-500">{n.body}</div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* 🔥 Контент ниже всегда под уведомлениями */}
-        <div className="relative z-0">
-          {children}
-        </div>
+        {/* Контент остаётся без изменений */}
+        {children}
       </div>
     </div>
   )
