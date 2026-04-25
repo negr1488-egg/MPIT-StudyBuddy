@@ -1,9 +1,50 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, LoaderCircle, Paperclip, Trash2, Sparkles } from 'lucide-react';
+import { X, LoaderCircle, Paperclip, Trash2, Sparkles, Mic, MicOff } from 'lucide-react';
 import type { CreateTaskInput } from '../hooks/useTasks';
 import type { TaskRoleOwner } from '../types/task';
 // ✅ Импорт из нового AI-слоя (путь исправлен: ../../../services/ai)
 import { parseTask, getTaskSteps } from '../../../services/ai';
+
+
+type SpeechRecognitionResultItem = {
+  transcript: string;
+};
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0: SpeechRecognitionResultItem;
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
 
 interface AiTaskStep {
   title: string;
@@ -70,6 +111,7 @@ function AddTaskModalComponent({
   const [deadline, setDeadline] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [studentId, setStudentId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
@@ -81,10 +123,14 @@ function AddTaskModalComponent({
 
   const [isAiParsing, setIsAiParsing] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
 
   const isTeacher = defaultCreatedBy === 'teacher';
   const rawInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const speechBaseRef = useRef('');
   const previousOpen = useRef(open);
 
   useEffect(() => {
@@ -105,12 +151,19 @@ function AddTaskModalComponent({
       setStepsError('');
       setStepsSource('');
       setAiError('');
+      setVoiceError('');
       setIsAiParsing(false);
+      setIsListening(false);
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
 
       if (isTeacher) {
-        setStudentId(selectedStudentId || (students.length > 0 ? students[0].id : ''));
+        const initialStudentId = selectedStudentId || (students.length > 0 ? students[0].id : '');
+        setStudentId(initialStudentId);
+        setSelectedStudentIds(initialStudentId ? [initialStudentId] : []);
       } else {
         setStudentId('');
+        setSelectedStudentIds([]);
       }
 
       setIsSubmitting(false);
@@ -134,6 +187,89 @@ function AddTaskModalComponent({
       document.body.style.overflow = '';
     };
   }, [open]);
+
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+    };
+  }, []);
+
+  const getSpeechRecognitionConstructor = () => {
+    if (typeof window === 'undefined') return null;
+
+    const speechWindow = window as SpeechWindow;
+    return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+  };
+
+  const handleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const RecognitionClass = getSpeechRecognitionConstructor();
+
+    if (!RecognitionClass) {
+      setVoiceError('Голосовой ввод не поддерживается этим браузером. Попробуйте Chrome или Edge.');
+      return;
+    }
+
+    setVoiceError('');
+
+    const recognition = new RecognitionClass();
+    let finalTranscript = '';
+
+    speechBaseRef.current = rawInput.trimEnd();
+    recognition.lang = 'ru-RU';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0]?.transcript ?? '';
+
+        if (event.results[index].isFinal) {
+          finalTranscript = `${finalTranscript} ${transcript}`.trim();
+        } else {
+          interimTranscript = `${interimTranscript} ${transcript}`.trim();
+        }
+      }
+
+      const parts = [speechBaseRef.current, finalTranscript, interimTranscript].filter(Boolean);
+      setRawInput(parts.join(' '));
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed') {
+        setVoiceError('Браузер запретил доступ к микрофону. Разрешите микрофон в настройках сайта.');
+      } else if (event.error === 'no-speech') {
+        setVoiceError('Речь не распознана. Попробуйте сказать задание ещё раз.');
+      } else {
+        setVoiceError('Не удалось распознать речь. Попробуйте ещё раз.');
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    try {
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setVoiceError('Не удалось запустить голосовой ввод. Попробуйте ещё раз.');
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -203,8 +339,8 @@ function AddTaskModalComponent({
       return;
     }
 
-    if (isTeacher && !studentId) {
-      setError('Выберите ученика');
+    if (isTeacher && selectedStudentIds.length === 0) {
+      setError('Выберите хотя бы одного ученика');
       return;
     }
 
@@ -221,7 +357,8 @@ function AddTaskModalComponent({
         deadline: new Date(deadline).toISOString(),
         priority,
         createdBy: defaultCreatedBy,
-        studentId: isTeacher ? studentId : undefined,
+        studentId: isTeacher ? selectedStudentIds[0] : undefined,
+        studentIds: isTeacher ? selectedStudentIds : undefined,
         attachments: files,
       });
 
@@ -252,20 +389,46 @@ function AddTaskModalComponent({
 
         {isTeacher && (
           <div className="mt-6 rounded-[28px] bg-slate-50 p-5">
-            <label className="text-sm font-medium">Ученик</label>
-            <select
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              className="mt-3 h-12 w-full rounded-2xl border bg-white px-4 focus:border-slate-400 focus:outline-none"
-              disabled={isSubmitting || isAiParsing}
-            >
-              <option value="">Выберите</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}
-                </option>
-              ))}
-            </select>
+            <label className="text-sm font-medium">Ученики</label>
+            <p className="mt-1 text-xs text-slate-500">Можно назначить одно задание сразу нескольким ученикам.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {students.length > 0 ? (
+                students.map((s) => {
+                  const checked = selectedStudentIds.includes(s.id);
+
+                  return (
+                    <label
+                      key={s.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-2xl border px-4 py-3 text-sm transition ${
+                        checked
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedStudentIds((current) => {
+                            const next = current.includes(s.id)
+                              ? current.filter((id) => id !== s.id)
+                              : [...current, s.id];
+                            setStudentId(next[0] ?? '');
+                            return next;
+                          });
+                        }}
+                        disabled={isSubmitting || isAiParsing}
+                      />
+                      <span>{s.full_name ?? 'Ученик'}</span>
+                    </label>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl bg-white p-4 text-sm text-slate-500 sm:col-span-2">
+                  Нет привязанных учеников
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -283,6 +446,24 @@ function AddTaskModalComponent({
 
             <button
               type="button"
+              onClick={handleVoiceInput}
+              disabled={isSubmitting || isAiParsing}
+              className={`inline-flex items-center rounded-2xl px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                isListening
+                  ? 'bg-rose-600 text-white hover:bg-rose-700'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {isListening ? (
+                <MicOff className="mr-2 h-4 w-4" />
+              ) : (
+                <Mic className="mr-2 h-4 w-4" />
+              )}
+              {isListening ? 'Остановить запись' : 'Голосовой ввод'}
+            </button>
+
+            <button
+              type="button"
               onClick={handleAiParseAndBuildSteps}
               disabled={isSubmitting || isAiParsing}
               className="inline-flex items-center rounded-2xl bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -295,6 +476,12 @@ function AddTaskModalComponent({
               {isAiParsing ? 'ИИ обрабатывает...' : 'Распознать через ИИ'}
             </button>
           </div>
+
+          {voiceError && (
+            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+              {voiceError}
+            </div>
+          )}
 
           {aiError && (
             <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
