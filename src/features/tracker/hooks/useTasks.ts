@@ -7,6 +7,7 @@ import { isToday } from '../utils/deadline';
 import { isSupabaseEnabled } from '../../../shared/lib/supabase';
 import { uploadTaskAttachments } from '../utils/uploadFile';
 import { buildStudentAdaptiveReminders } from '../utils/adaptiveReminders';
+import { buildTaskHelpRequest, parseTaskHelpRequest } from '../utils/helpRequest';
 
 export interface CreateTaskInput {
   title: string;
@@ -214,6 +215,68 @@ export function useTasks() {
     [loadTasks]
   );
 
+
+  const requestTeacherHelp = useCallback(
+    async (taskId: string, message: string) => {
+      if (!isSupabaseEnabled) {
+        throw new Error('Supabase выключен');
+      }
+
+      const currentTask = tasks.find((task) => task.id === taskId);
+      if (!currentTask) {
+        throw new Error('Задача не найдена');
+      }
+
+      const trimmedMessage = message.trim();
+      if (!trimmedMessage) {
+        throw new Error('Опишите, в чём нужна помощь');
+      }
+
+      await tasksApi.updateTask(taskId, {
+        teacher_comment: buildTaskHelpRequest({
+          request: trimmedMessage,
+          requestedAt: new Date().toISOString(),
+        }),
+      });
+
+      await loadTasks();
+    },
+    [loadTasks, tasks]
+  );
+
+  const answerTeacherHelp = useCallback(
+    async (taskId: string, response: string) => {
+      if (!isSupabaseEnabled) {
+        throw new Error('Supabase выключен');
+      }
+
+      const currentTask = tasks.find((task) => task.id === taskId);
+      if (!currentTask) {
+        throw new Error('Задача не найдена');
+      }
+
+      const currentHelp = parseTaskHelpRequest(currentTask.teacherComment);
+      if (!currentHelp) {
+        throw new Error('Запрос помощи не найден');
+      }
+
+      const trimmedResponse = response.trim();
+      if (!trimmedResponse) {
+        throw new Error('Введите ответ ученику');
+      }
+
+      await tasksApi.updateTask(taskId, {
+        teacher_comment: buildTaskHelpRequest({
+          ...currentHelp,
+          response: trimmedResponse,
+          answeredAt: new Date().toISOString(),
+        }),
+      });
+
+      await loadTasks();
+    },
+    [loadTasks, tasks]
+  );
   const removeTask = useCallback(
     async (taskId: string) => {
       if (!isSupabaseEnabled) {
@@ -293,6 +356,8 @@ export function useTasks() {
           });
         }
 
+        const answeredHelp = tasks.filter((task) => parseTaskHelpRequest(task.teacherComment)?.response);
+
         if (waitingReview.length) {
           notes.push({
             id: 'waiting',
@@ -302,22 +367,45 @@ export function useTasks() {
           });
         }
 
+        if (answeredHelp.length) {
+          notes.push({
+            id: 'help-answers',
+            title: 'Учитель ответил',
+            description: `${answeredHelp.length} ответов на запросы помощи`,
+            type: 'info',
+          });
+        }
+
         return notes;
       }
 
       if (role === 'teacher') {
         const toReview = tasks.filter((task) => task.status === 'done' && !task.checkedAt);
+        const helpRequests = tasks.filter((task) => {
+          const help = parseTaskHelpRequest(task.teacherComment);
+          return help?.request && !help.response;
+        });
+        const notes: RoleNotification[] = [];
 
-        return toReview.length
-          ? [
-              {
-                id: 'review',
-                title: 'Требуют проверки',
-                description: `${toReview.length} задач`,
-                type: 'in_progress',
-              },
-            ]
-          : [];
+        if (toReview.length) {
+          notes.push({
+            id: 'review',
+            title: 'Требуют проверки',
+            description: `${toReview.length} задач`,
+            type: 'in_progress',
+          });
+        }
+
+        if (helpRequests.length) {
+          notes.push({
+            id: 'help-requests',
+            title: 'Запросы помощи',
+            description: `${helpRequests.length} учеников ждут ответа`,
+            type: 'info',
+          });
+        }
+
+        return notes;
       }
 
       if (role === 'parent') {
@@ -421,6 +509,8 @@ export function useTasks() {
     updateTaskStatus,
     submitSolution,
     reviewTask,
+    requestTeacherHelp,
+    answerTeacherHelp,
     removeTask,
     reload: loadTasks,
     getNotificationsForRole,
