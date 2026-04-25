@@ -173,7 +173,7 @@ export function ParentDashboardPage() {
         </div>
       </section>
 
-      {/* AI-чат */}
+      {/* AI‑чат */}
       <section className="rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.07)] backdrop-blur">
         <AIChat />
       </section>
