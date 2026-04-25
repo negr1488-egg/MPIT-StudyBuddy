@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   AlertCircle,
   ClipboardCheck,
+  MessageCircle,
 } from 'lucide-react';
+import { parseTaskHelpRequest } from '../utils/helpRequest';
 import type { Task, TaskPriority, TaskStatus } from '../types/task';
 import { formatDeadline } from '../utils/deadline';
 
@@ -19,6 +21,8 @@ interface TaskCardProps {
   onStatusChange?: (taskId: string, status: TaskStatus, teacherComment?: string) => Promise<void>;
   onSubmitSolution?: (taskId: string, text: string, files: File[]) => Promise<void>;
   onReview?: (taskId: string, feedback: string, status?: TaskStatus) => void;
+  onRequestHelp?: (taskId: string, message: string) => Promise<void>;
+  onAnswerHelp?: (taskId: string, response: string) => Promise<void>;
   onEdit?: (
     taskId: string,
     input: {
@@ -183,6 +187,8 @@ export function TaskCard({
   onReview,
   onEdit,
   onDelete,
+  onRequestHelp,
+  onAnswerHelp,
   showStudentMeta = false,
 }: TaskCardProps) {
   const [solutionText, setSolutionText] = useState('');
@@ -207,12 +213,19 @@ export function TaskCard({
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpResponse, setHelpResponse] = useState("");
+  const [showHelpForm, setShowHelpForm] = useState(false);
+  const [showHelpAnswerForm, setShowHelpAnswerForm] = useState(false);
+  const [isSendingHelp, setIsSendingHelp] = useState(false);
+  const [helpError, setHelpError] = useState<string | null>(null);
 
   const { plainDescription, steps } = useMemo(
     () => parseStepsFromDescription(task.description),
     [task.description]
   );
 
+  const helpRequest = useMemo(() => parseTaskHelpRequest(task.teacherComment), [task.teacherComment]);
   const canSubmit = task.status !== 'done' && !task.checkedAt;
   const isPendingReview = task.status === 'done' && !task.checkedAt;
   const isCompletedFinal = task.status === 'done' && Boolean(task.checkedAt);
@@ -339,6 +352,52 @@ export function TaskCard({
       setDeleteError(err instanceof Error ? err.message : 'Не удалось удалить задачу');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleRequestHelp = async () => {
+    if (!onRequestHelp) return;
+
+    const message = helpMessage.trim();
+    if (!message) {
+      setHelpError('Опишите, в чём нужна помощь');
+      return;
+    }
+
+    setIsSendingHelp(true);
+    setHelpError(null);
+
+    try {
+      await onRequestHelp(task.id, message);
+      setHelpMessage('');
+      setShowHelpForm(false);
+    } catch (err) {
+      setHelpError(err instanceof Error ? err.message : 'Не удалось отправить запрос');
+    } finally {
+      setIsSendingHelp(false);
+    }
+  };
+
+  const handleAnswerHelp = async () => {
+    if (!onAnswerHelp) return;
+
+    const response = helpResponse.trim();
+    if (!response) {
+      setHelpError('Введите ответ ученику');
+      return;
+    }
+
+    setIsSendingHelp(true);
+    setHelpError(null);
+
+    try {
+      await onAnswerHelp(task.id, response);
+      setHelpResponse('');
+      setShowHelpAnswerForm(false);
+    } catch (err) {
+      setHelpError(err instanceof Error ? err.message : 'Не удалось отправить ответ');
+    } finally {
+      setIsSendingHelp(false);
     }
   };
 
@@ -568,6 +627,28 @@ export function TaskCard({
             </div>
           )}
 
+          {helpRequest && (
+            <div className="rounded-[24px] border border-sky-200 bg-sky-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-sky-900">
+                <MessageCircle className="h-4 w-4" />
+                Запрос помощи учителю
+              </div>
+              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-sky-900">
+                {helpRequest.request}
+              </p>
+              {helpRequest.response ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Ответ учителя</p>
+                  <p className="mt-1 whitespace-pre-line text-sm leading-6 text-emerald-900">
+                    {helpRequest.response}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs font-medium text-sky-700">Учитель ещё не ответил</p>
+              )}
+            </div>
+          )}
+
           {task.solutionText && (
             <div
               className={`rounded-[24px] border p-4 ${
@@ -658,6 +739,26 @@ export function TaskCard({
             </button>
           )}
 
+
+          {onRequestHelp && task.createdBy === 'teacher' && !isEditing && !isCompletedFinal && (
+            <button
+              onClick={() => setShowHelpForm(!showHelpForm)}
+              className="inline-flex items-center rounded-2xl bg-sky-600 px-4 py-2 text-sm text-white"
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              {showHelpForm ? 'Скрыть запрос' : helpRequest ? 'Изменить запрос помощи' : 'Попросить помощь'}
+            </button>
+          )}
+
+          {onAnswerHelp && helpRequest && !helpRequest.response && !isEditing && (
+            <button
+              onClick={() => setShowHelpAnswerForm(!showHelpAnswerForm)}
+              className="inline-flex items-center rounded-2xl bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Ответить на запрос
+            </button>
+          )}
           {onReview && isPendingReview && !isEditing && (
             <button
               onClick={() => setShowReviewForm(!showReviewForm)}
@@ -668,6 +769,70 @@ export function TaskCard({
           )}
         </div>
 
+
+        {showHelpForm && !isEditing && (
+          <div className="pb-4">
+            <div className="rounded-[24px] border border-sky-200 bg-sky-50 p-4">
+              <textarea
+                value={helpMessage}
+                onChange={(e) => setHelpMessage(e.target.value)}
+                placeholder="Напиши, что именно непонятно по задаче..."
+                className="w-full rounded-xl border p-3 text-sm"
+                rows={3}
+                disabled={isSendingHelp}
+              />
+
+              {helpError && (
+                <div className="mt-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700">
+                  {helpError}
+                </div>
+              )}
+
+              <button
+                onClick={handleRequestHelp}
+                disabled={isSendingHelp}
+                className="mt-3 inline-flex items-center rounded-xl bg-sky-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {isSendingHelp && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                Отправить запрос учителю
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showHelpAnswerForm && !isEditing && (
+          <div className="pb-4">
+            <div className="rounded-[24px] border border-sky-200 bg-sky-50 p-4">
+              <div className="mb-3 rounded-2xl bg-white p-3 text-sm leading-6 text-slate-700">
+                {helpRequest?.request}
+              </div>
+
+              <textarea
+                value={helpResponse}
+                onChange={(e) => setHelpResponse(e.target.value)}
+                placeholder="Ответ ученику..."
+                className="w-full rounded-xl border p-3 text-sm"
+                rows={3}
+                disabled={isSendingHelp}
+              />
+
+              {helpError && (
+                <div className="mt-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700">
+                  {helpError}
+                </div>
+              )}
+
+              <button
+                onClick={handleAnswerHelp}
+                disabled={isSendingHelp}
+                className="mt-3 inline-flex items-center rounded-xl bg-slate-950 px-4 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {isSendingHelp && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                Отправить ответ
+              </button>
+            </div>
+          </div>
+        )}
         {showSolutionForm && !isEditing && (
           <div className="pb-4">
             <div className="rounded-[24px] border bg-slate-50 p-4">
