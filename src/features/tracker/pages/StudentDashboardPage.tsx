@@ -311,6 +311,7 @@ export function StudentDashboardPage() {
         isLoading={tasksApi.isLoading}
         onStatusChange={tasksApi.updateTaskStatus}
         onSubmitSolution={tasksApi.submitSolution}
+        onRequestHelp={tasksApi.requestTeacherHelp}
         onEdit={tasksApi.editTask}
         onDelete={tasksApi.removeTask}
       />
@@ -323,6 +324,7 @@ export function StudentDashboardPage() {
         isLoading={tasksApi.isLoading}
         onStatusChange={tasksApi.updateTaskStatus}
         onSubmitSolution={tasksApi.submitSolution}
+        onRequestHelp={tasksApi.requestTeacherHelp}
         onEdit={tasksApi.editTask}
         onDelete={tasksApi.removeTask}
       />
@@ -335,6 +337,7 @@ export function StudentDashboardPage() {
         isLoading={tasksApi.isLoading}
         onStatusChange={tasksApi.updateTaskStatus}
         onSubmitSolution={tasksApi.submitSolution}
+        onRequestHelp={tasksApi.requestTeacherHelp}
         onEdit={tasksApi.editTask}
         onDelete={tasksApi.removeTask}
       />
@@ -348,6 +351,7 @@ export function StudentDashboardPage() {
           isLoading={tasksApi.isLoading}
           onStatusChange={tasksApi.updateTaskStatus}
           onSubmitSolution={tasksApi.submitSolution}
+        onRequestHelp={tasksApi.requestTeacherHelp}
           onEdit={tasksApi.editTask}
           onDelete={tasksApi.removeTask}
         />
@@ -362,6 +366,7 @@ export function StudentDashboardPage() {
           isLoading={tasksApi.isLoading}
           onStatusChange={tasksApi.updateTaskStatus}
           onSubmitSolution={tasksApi.submitSolution}
+        onRequestHelp={tasksApi.requestTeacherHelp}
           onEdit={tasksApi.editTask}
           onDelete={tasksApi.removeTask}
         />
