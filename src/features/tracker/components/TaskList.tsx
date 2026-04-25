@@ -12,6 +12,8 @@ interface TaskListProps {
   onStatusChange?: (taskId: string, status: TaskStatus) => Promise<void>;
   onSubmitSolution?: (taskId: string, text: string, files: File[]) => Promise<void>;
   onReview?: (taskId: string, feedback: string, status?: TaskStatus) => void;
+  onRequestHelp?: (taskId: string, message: string) => Promise<void>;
+  onAnswerHelp?: (taskId: string, response: string) => Promise<void>;
   onEdit?: (taskId: string, input: {
     title: string;
     subject?: string;
@@ -34,6 +36,8 @@ export function TaskList({
   onReview,
   onEdit,
   onDelete,
+  onRequestHelp,
+  onAnswerHelp,
   showStudentMeta = false,
 }: TaskListProps) {
   return (
@@ -73,6 +77,8 @@ export function TaskList({
               onStatusChange={onStatusChange}
               onSubmitSolution={onSubmitSolution}
               onReview={onReview}
+              onRequestHelp={onRequestHelp}
+              onAnswerHelp={onAnswerHelp}
               onEdit={onEdit}
               onDelete={onDelete}
               showStudentMeta={showStudentMeta}
