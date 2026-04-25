@@ -210,6 +210,11 @@ function AddTaskModalComponent({
       return;
     }
 
+    if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost') {
+      setVoiceError('Голосовой ввод работает только на HTTPS или localhost.');
+      return;
+    }
+
     const RecognitionClass = getSpeechRecognitionConstructor();
 
     if (!RecognitionClass) {
@@ -224,7 +229,7 @@ function AddTaskModalComponent({
 
     speechBaseRef.current = rawInput.trimEnd();
     recognition.lang = 'ru-RU';
-    recognition.continuous = true;
+    recognition.continuous = !/Android|iPhone|iPad/i.test(navigator.userAgent);
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
@@ -373,8 +378,8 @@ function AddTaskModalComponent({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-sm">
-      <div className="my-6 w-full max-w-2xl rounded-[32px] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
+    <div className="fixed inset-0 z-[10000] flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-sm">
+      <div className="relative z-[10001] my-6 w-full max-w-2xl rounded-[32px] border border-white/70 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between">
           <h2 className="text-2xl font-semibold">Новая задача</h2>
           <button
