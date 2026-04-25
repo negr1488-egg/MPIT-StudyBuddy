@@ -1,4 +1,4 @@
-\import React, { useMemo } from 'react'
+import React, { useMemo } from 'react'
 import type { TasksApi } from '../hooks/useTasks'
 import { normalizeTask } from '../utils/normalizeTask'
 
