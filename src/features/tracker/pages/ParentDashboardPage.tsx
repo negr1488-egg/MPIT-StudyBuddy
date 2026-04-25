@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import type { TasksApi } from '../hooks/useTasks'
-import { normalizeTask } from '../utils/normalizeTask'
+import { normalizeTask } from '../utils/taskStatus'
 
 interface Props {
   tasksApi: TasksApi
@@ -9,7 +9,6 @@ interface Props {
 export function ParentDashboardPage({ tasksApi }: Props) {
   const tasks = tasksApi.tasks
 
-  // 🔥 ИСПРАВЛЕНИЕ ЗДЕСЬ
   const normalized = useMemo(
     () => tasks.map((task) => normalizeTask(task)),
     [tasks]
